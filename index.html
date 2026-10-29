@@ -1,0 +1,1626 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Daytripper</title>
+<link
+  rel="stylesheet"
+  href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+  integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+  crossorigin=""
+/>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link
+  href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&family=Nunito:wght@400;600;700;800&display=swap"
+  rel="stylesheet"
+/>
+<style>
+  :root {
+    --coral: #ff6b5e;        /* sunset coral - primary */
+    --coral-deep: #e8463a;
+    --tangerine: #ffa63d;    /* warm orange */
+    --teal: #16c2b4;         /* sea teal - secondary */
+    --teal-deep: #0b7d74;
+    --sun: #ffd23f;          /* sunny yellow */
+    --cream: #fff7ec;        /* warm background */
+    --ink: #2b2140;          /* deep plum text */
+    --muted: #8a7f96;
+    --panel: #ffffff;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    font-family: "Nunito", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--cream);
+    color: var(--ink);
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+  }
+  header {
+    padding: 16px 22px;
+    background: linear-gradient(120deg, #ff8a5b 0%, var(--coral) 45%, #ff5e8a 100%);
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    flex-wrap: wrap;
+    box-shadow: 0 4px 18px rgba(255,107,94,0.35);
+    position: relative;
+    z-index: 600;
+  }
+  header h1 {
+    font-family: "Baloo 2", "Nunito", sans-serif;
+    font-size: 26px;
+    margin: 0;
+    font-weight: 800;
+    color: #fff;
+    letter-spacing: 0.3px;
+    white-space: nowrap;
+    text-shadow: 0 2px 6px rgba(0,0,0,0.18);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  header h1 .mapicon {
+    display: inline-flex;
+    animation: bob 3.2s ease-in-out infinite;
+    filter: drop-shadow(0 2px 3px rgba(0,0,0,0.22));
+  }
+  @keyframes bob {
+    0%, 100% { transform: translateY(0) rotate(-4deg); }
+    50% { transform: translateY(-3px) rotate(2deg); }
+  }
+  .search {
+    display: flex;
+    gap: 10px;
+    flex: 1;
+    min-width: 260px;
+    max-width: 560px;
+  }
+  .search input {
+    flex: 1;
+    padding: 12px 18px;
+    border-radius: 999px;
+    border: 2px solid transparent;
+    background: #fff;
+    color: var(--ink);
+    font-family: "Nunito", sans-serif;
+    font-size: 15px;
+    font-weight: 600;
+    outline: none;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+  }
+  .search input::placeholder { color: #b7adc1; font-weight: 600; }
+  .search input:focus { border-color: var(--sun); }
+  .search button {
+    padding: 12px 26px;
+    border-radius: 999px;
+    border: none;
+    background: var(--teal);
+    color: #fff;
+    font-family: "Baloo 2", sans-serif;
+    font-weight: 700;
+    font-size: 16px;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(11,125,116,0.4);
+    transition: transform 0.12s ease, background 0.2s ease;
+  }
+  .search button:hover { background: var(--teal-deep); transform: translateY(-1px); }
+  .search button:active { transform: translateY(1px); }
+  .search button:disabled { opacity: 0.6; cursor: wait; transform: none; }
+  .status {
+    font-size: 13.5px;
+    font-weight: 700;
+    color: #fff;
+    min-height: 16px;
+    opacity: 0.95;
+  }
+  .status.error { color: #4a1d1a; background: rgba(255,255,255,0.75); padding: 2px 10px; border-radius: 999px; }
+  #map { flex: 1; width: 100%; background: #cdeef0; }
+
+  /* Leaflet tooltip styling for place cards */
+  .leaflet-tooltip.trip-card {
+    background: #fff;
+    border: 2px solid var(--teal);
+    color: var(--ink);
+    border-radius: 16px;
+    padding: 12px 14px;
+    max-width: 250px;
+    white-space: normal;
+    box-shadow: 0 10px 26px rgba(43,33,64,0.25);
+    font-family: "Nunito", sans-serif;
+    font-size: 13px;
+    line-height: 1.45;
+    z-index: 650;
+  }
+  .leaflet-tooltip.trip-card::before { display: none; }
+  .trip-card .name {
+    font-family: "Baloo 2", sans-serif;
+    font-weight: 700; font-size: 15px; margin-bottom: 4px; color: var(--coral-deep);
+  }
+  .trip-card .desc { color: var(--muted); margin-bottom: 6px; font-weight: 600; }
+  .trip-card .meta { display: flex; align-items: center; gap: 6px; font-weight: 800; color: var(--teal-deep); }
+  .trip-card .meta .method { color: var(--tangerine); }
+
+  .start-tooltip {
+    background: var(--coral);
+    color: #fff;
+    border: none;
+    font-family: "Baloo 2", sans-serif;
+    font-weight: 700;
+    border-radius: 999px;
+    padding: 3px 12px;
+    box-shadow: 0 4px 10px rgba(232,70,58,0.4);
+  }
+  .start-tooltip::before { display: none; }
+
+  .legend {
+    position: absolute;
+    bottom: 18px;
+    left: 18px;
+    z-index: 500;
+    background: #fff;
+    border: 2px solid var(--sun);
+    border-radius: 16px;
+    padding: 12px 16px;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--muted);
+    max-width: 250px;
+    box-shadow: 0 8px 22px rgba(43,33,64,0.18);
+  }
+  .legend b { color: var(--coral-deep); }
+
+  /* ---- Header auth controls ---- */
+  .auth-bar { display: flex; align-items: center; gap: 10px; margin-left: auto; }
+  .auth-btn {
+    padding: 9px 16px; border-radius: 999px; border: none; cursor: pointer;
+    font-family: "Baloo 2", sans-serif; font-weight: 700; font-size: 14px;
+    background: rgba(255,255,255,0.22); color: #fff;
+    transition: background 0.2s ease, transform 0.12s ease;
+  }
+  .auth-btn:hover { background: rgba(255,255,255,0.34); transform: translateY(-1px); }
+  .auth-btn.solid { background: #fff; color: var(--coral-deep); }
+  .auth-btn.solid:hover { background: #fff6ef; }
+  .auth-user { display: flex; align-items: center; gap: 10px; }
+  .auth-hi { color: #fff; font-weight: 800; font-size: 14px; }
+  .auth-hi .who { color: var(--sun); }
+
+  /* ---- Modal (login / signup) ---- */
+  .modal-overlay {
+    position: fixed; inset: 0; z-index: 2000;
+    background: rgba(43,33,64,0.55); backdrop-filter: blur(2px);
+    display: none; align-items: center; justify-content: center; padding: 20px;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: #fff; border-radius: 22px; padding: 26px 26px 22px;
+    width: 100%; max-width: 380px; box-shadow: 0 24px 60px rgba(43,33,64,0.4);
+    position: relative;
+  }
+  .modal h2 {
+    font-family: "Baloo 2", sans-serif; margin: 0 0 4px; font-size: 23px; color: var(--ink);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .modal .sub { color: var(--muted); font-size: 13.5px; font-weight: 600; margin: 0 0 18px; }
+  .modal label { display: block; font-weight: 700; font-size: 13px; color: var(--ink); margin: 12px 0 5px; }
+  .modal input {
+    width: 100%; padding: 11px 14px; border-radius: 12px; border: 2px solid #eadff0;
+    font-family: "Nunito", sans-serif; font-size: 15px; font-weight: 600; outline: none;
+  }
+  .modal input:focus { border-color: var(--teal); }
+  .modal .primary {
+    width: 100%; margin-top: 18px; padding: 12px; border: none; border-radius: 999px;
+    background: var(--teal); color: #fff; font-family: "Baloo 2", sans-serif;
+    font-weight: 700; font-size: 16px; cursor: pointer; box-shadow: 0 5px 14px rgba(11,125,116,0.4);
+  }
+  .modal .primary:hover { background: var(--teal-deep); }
+  .modal .switch { text-align: center; margin-top: 14px; font-size: 13px; font-weight: 600; color: var(--muted); }
+  .modal .switch a { color: var(--coral-deep); cursor: pointer; font-weight: 800; }
+  .modal .err {
+    background: #fff0ee; color: #c0392b; border: 1px solid #f6c7c0;
+    border-radius: 10px; padding: 8px 12px; font-size: 13px; font-weight: 700;
+    margin-top: 14px; display: none;
+  }
+  .modal .err.show { display: block; }
+  .modal .note {
+    margin-top: 16px; font-size: 11.5px; color: #a89db4; font-weight: 600; line-height: 1.4;
+    border-top: 1px dashed #eadff0; padding-top: 12px;
+  }
+  .modal .x {
+    position: absolute; top: 14px; right: 16px; background: none; border: none;
+    font-size: 22px; color: var(--muted); cursor: pointer; line-height: 1;
+  }
+
+  /* ---- Results panel ---- */
+  .panel {
+    position: absolute; top: 94px; right: 16px; z-index: 700;
+    width: 320px; max-width: calc(100vw - 32px);
+    background: #fff; border-radius: 18px; box-shadow: 0 14px 40px rgba(43,33,64,0.22);
+    border: 2px solid #ffe4c7; overflow: hidden; display: none;
+    max-height: calc(100vh - 120px);
+  }
+  .panel.open { display: block; }
+  .reopen-btn {
+    position: absolute; top: 108px; right: 16px; z-index: 690;
+    padding: 11px 18px; border: none; border-radius: 999px; cursor: pointer;
+    background: var(--coral); color: #fff; font-family: "Baloo 2", sans-serif;
+    font-weight: 700; font-size: 14px; box-shadow: 0 8px 20px rgba(232,70,58,0.4);
+    transition: transform 0.12s ease, background 0.2s ease;
+  }
+  .reopen-btn:hover { background: var(--coral-deep); transform: translateY(-1px); }
+  .panel-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 16px; background: linear-gradient(120deg, var(--tangerine), var(--coral));
+    color: #fff;
+  }
+  .panel-head h3 { margin: 0; font-family: "Baloo 2", sans-serif; font-size: 17px; }
+  .panel-head .x { background: none; border: none; color: #fff; font-size: 20px; cursor: pointer; }
+  .panel-body { padding: 10px; overflow-y: auto; max-height: calc(100vh - 185px); }
+
+  .trip-item {
+    position: relative; border: 2px solid #f1e7f3; border-radius: 14px;
+    padding: 12px 12px 10px; margin-bottom: 10px; transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+  .trip-item:hover { border-color: var(--teal); box-shadow: 0 6px 16px rgba(43,33,64,0.1); }
+  .trip-item .ti-name { font-family: "Baloo 2", sans-serif; font-weight: 700; font-size: 15.5px; color: var(--coral-deep); }
+  .trip-item .ti-desc { color: var(--muted); font-size: 12.5px; font-weight: 600; margin: 4px 0 6px; line-height: 1.4; }
+  .trip-item .ti-meta { font-size: 12.5px; font-weight: 800; color: var(--teal-deep); }
+  .trip-item .ti-meta .method { color: var(--tangerine); }
+  .ti-more {
+    display: inline-block; margin-top: 7px; font-size: 12.5px; font-weight: 800;
+    color: var(--coral-deep); text-decoration: none; border-bottom: 2px solid transparent;
+  }
+  .ti-more:hover { border-bottom-color: var(--coral-deep); }
+  .trip-item .ti-actions {
+    display: flex; gap: 8px; margin-top: 10px;
+    opacity: 0; max-height: 0; overflow: hidden;
+    transition: opacity 0.18s ease, max-height 0.18s ease;
+  }
+  .trip-item:hover .ti-actions, .trip-item:focus-within .ti-actions { opacity: 1; max-height: 60px; }
+  .ti-actions button {
+    flex: 1; padding: 7px 8px; border-radius: 999px; border: none; cursor: pointer;
+    font-family: "Baloo 2", sans-serif; font-weight: 700; font-size: 12.5px;
+    display: inline-flex; align-items: center; justify-content: center; gap: 5px;
+  }
+  .btn-save { background: var(--sun); color: #5a4a00; }
+  .btn-save:hover { background: #ffc61f; }
+  .btn-save.saved { background: #d6f5e8; color: var(--teal-deep); }
+  .btn-share { background: #eef0ff; color: #3b3f8f; }
+  .btn-share:hover { background: #e2e5ff; }
+
+  /* ---- Share popover ---- */
+  .share-pop {
+    position: absolute; z-index: 2100; background: #fff; border-radius: 14px;
+    box-shadow: 0 14px 36px rgba(43,33,64,0.3); border: 2px solid #eef0ff;
+    padding: 8px; display: none; min-width: 180px;
+  }
+  .share-pop.open { display: block; }
+  .share-pop .sp-title { font-size: 11px; font-weight: 800; color: var(--muted); text-transform: uppercase; padding: 4px 8px 6px; letter-spacing: 0.4px; }
+  .share-pop a {
+    display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 10px;
+    color: var(--ink); text-decoration: none; font-weight: 700; font-size: 14px;
+  }
+  .share-pop a:hover { background: #f6f2fb; }
+  .share-pop .ic { width: 22px; height: 22px; display: inline-flex; }
+
+  /* ---- My Trips ---- */
+  .mytrips-empty { color: var(--muted); font-weight: 600; font-size: 13.5px; text-align: center; padding: 24px 10px; }
+  .mt-item { position: relative; border: 2px solid #f1e7f3; border-radius: 14px; padding: 12px; margin-bottom: 10px; }
+  .mt-item .mt-start { font-size: 11.5px; font-weight: 800; color: var(--tangerine); text-transform: uppercase; letter-spacing: 0.3px; }
+  .mt-item .mt-name { font-family: "Baloo 2", sans-serif; font-weight: 700; font-size: 15px; color: var(--coral-deep); margin-top: 2px; }
+  .mt-item .mt-desc { color: var(--muted); font-size: 12px; font-weight: 600; margin-top: 3px; line-height: 1.4; }
+  .mt-item .mt-del {
+    position: absolute; top: 8px; right: 8px; background: #fff0ee; color: #c0392b;
+    border: none; border-radius: 8px; width: 24px; height: 24px; cursor: pointer; font-weight: 800;
+  }
+  @media (max-width: 560px) {
+    .panel { top: auto; bottom: 0; right: 0; left: 0; width: 100%; max-width: 100%; border-radius: 18px 18px 0 0; max-height: 60vh; }
+    .auth-hi .word { display: none; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>
+    <span class="mapicon" aria-hidden="true">
+      <svg viewBox="0 0 24 24" width="26" height="26" fill="none"
+           stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M9 3 3 5.4v15.1l6-2.4 6 2.4 6-2.4V2.9l-6 2.4L9 3Z" fill="rgba(255,255,255,0.18)"/>
+        <path d="M9 3v15.1M15 5.3V20.4"/>
+        <circle cx="12" cy="10" r="1.3" fill="#fff" stroke="none"/>
+      </svg>
+    </span>
+    Daytripper
+  </h1>
+  <form class="search" id="searchForm">
+    <input
+      id="locationInput"
+      type="text"
+      placeholder="Where are you starting? e.g. London"
+      autocomplete="off"
+    />
+    <button type="submit" id="goBtn">Let's go!</button>
+  </form>
+  <div class="status" id="status">Pop in a place and hit go — we'll find you day trips close by! 🗺️</div>
+
+  <div class="auth-bar" id="authBar">
+    <!-- Logged-out state -->
+    <div id="authLoggedOut" class="auth-user">
+      <button class="auth-btn" id="loginBtn">Log in</button>
+      <button class="auth-btn solid" id="signupBtn">Sign up</button>
+    </div>
+    <!-- Logged-in state -->
+    <div id="authLoggedIn" class="auth-user" style="display:none;">
+      <span class="auth-hi"><span class="word">Hi,</span> <span class="who" id="authWho">there</span></span>
+      <button class="auth-btn" id="myTripsBtn">My Trips</button>
+      <button class="auth-btn" id="logoutBtn">Log out</button>
+    </div>
+  </div>
+</header>
+
+<div id="map"></div>
+<div class="legend" id="legend" style="display:none;">
+  🧳 Up to <b>3 day-trip ideas</b> within <b>2 hours</b> each way.<br />
+  Hover a pin for details &middot; travel times are estimates.
+</div>
+
+<!-- Floating button to reopen the results panel once it's been closed -->
+<button class="reopen-btn" id="reopenBtn" style="display:none;">📋 Show results</button>
+
+<!-- Results panel (also reused for My Trips) -->
+<div class="panel" id="resultsPanel">
+  <div class="panel-head">
+    <h3 id="panelTitle">Your day trips</h3>
+    <button class="x" id="panelClose" aria-label="Close">&times;</button>
+  </div>
+  <div class="panel-body" id="panelBody"></div>
+</div>
+
+<!-- Login / Signup modal -->
+<div class="modal-overlay" id="authModal">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <button class="x" id="modalClose" aria-label="Close">&times;</button>
+    <h2 id="modalTitle">🗺️ Welcome back</h2>
+    <p class="sub" id="modalSub">Log in to save and revisit your day trips.</p>
+
+    <form id="authForm">
+      <div id="nameField" style="display:none;">
+        <label for="fName">Name</label>
+        <input id="fName" type="text" autocomplete="name" placeholder="Your name" />
+      </div>
+      <label for="fEmail">Email</label>
+      <input id="fEmail" type="email" autocomplete="username" placeholder="you@example.com" required />
+      <label for="fPass">Password</label>
+      <input id="fPass" type="password" autocomplete="current-password" placeholder="••••••••" required />
+      <div class="err" id="authErr"></div>
+      <button class="primary" id="authSubmit" type="submit">Log in</button>
+    </form>
+
+    <div class="switch" id="authSwitch">
+      New here? <a id="switchLink">Create an account</a>
+    </div>
+    <p class="note" id="authNote">
+      Demo accounts are stored only in this browser (localStorage) and are not
+      secure — please don't use a real password.
+    </p>
+  </div>
+</div>
+
+<!-- Share popover -->
+<div class="share-pop" id="sharePop">
+  <div class="sp-title">Share this trip</div>
+  <a id="shareEmail" href="#">
+    <span class="ic">✉️</span> Email
+  </a>
+  <a id="shareWhatsApp" href="#" target="_blank" rel="noopener">
+    <span class="ic">💬</span> WhatsApp
+  </a>
+  <a id="shareCopy" href="#">
+    <span class="ic">🔗</span> Copy summary
+  </a>
+</div>
+
+<script
+  src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+  integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+  crossorigin=""
+></script>
+<script>
+(function () {
+  "use strict";
+
+  var MAX_TRAVEL_MIN = 120;          // 2 hours each way
+  var MAX_RESULTS = 3;
+  var NOMINATIM = "https://nominatim.openstreetmap.org";
+  var OVERPASS_ENDPOINTS = [
+    "https://overpass-api.de/api/interpreter",
+    "https://overpass.kumi.systems/api/interpreter",
+    "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
+  ];
+  var WDQS = "https://query.wikidata.org/sparql";
+
+  var map = L.map("map", { worldCopyJump: true }).setView([20, 0], 2);
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 19,
+    attribution: "&copy; OpenStreetMap contributors",
+  }).addTo(map);
+
+  var layer = L.layerGroup().addTo(map);
+
+  var form = document.getElementById("searchForm");
+  var input = document.getElementById("locationInput");
+  var goBtn = document.getElementById("goBtn");
+  var statusEl = document.getElementById("status");
+  var legend = document.getElementById("legend");
+
+  function setStatus(msg, isError) {
+    statusEl.textContent = msg;
+    statusEl.className = "status" + (isError ? " error" : "");
+  }
+
+  // Haversine distance in km
+  function distanceKm(a, b) {
+    var R = 6371;
+    var dLat = (b.lat - a.lat) * Math.PI / 180;
+    var dLon = (b.lon - a.lon) * Math.PI / 180;
+    var la1 = a.lat * Math.PI / 180;
+    var la2 = b.lat * Math.PI / 180;
+    var h = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(la1) * Math.cos(la2) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    return 2 * R * Math.asin(Math.sqrt(h));
+  }
+
+  // Estimate travel time + method from straight-line distance.
+  // Road/rail routes are longer and slower than a straight line, so we apply
+  // a detour factor and a realistic average speed that varies with distance.
+  function estimateTravel(km) {
+    var routeKm = km * 1.3; // detour factor for real roads/rail
+    var speed, method;
+    if (km < 15) { speed = 35; method = "car"; }          // city/suburban
+    else if (km < 60) { speed = 60; method = "car"; }      // A-roads
+    else if (km < 120) { speed = 85; method = "car / rail"; } // mix of motorway & rail
+    else { speed = 100; method = "rail / motorway"; }      // fast intercity
+    var minutes = Math.round((routeKm / speed) * 60);
+    return { minutes: minutes, method: method, routeKm: Math.round(routeKm) };
+  }
+
+  function fmtTime(min) {
+    var h = Math.floor(min / 60);
+    var m = min % 60;
+    if (h === 0) return m + " min";
+    if (m === 0) return h + " hr";
+    return h + " hr " + m + " min";
+  }
+
+  function geocode(query) {
+    var url = NOMINATIM + "/search?format=jsonv2&limit=1&q=" + encodeURIComponent(query);
+    return fetch(url, { headers: { "Accept-Language": "en" } })
+      .then(function (r) { return r.json(); })
+      .then(function (list) {
+        if (!list || !list.length) throw new Error("Location not found.");
+        var p = list[0];
+        return {
+          lat: parseFloat(p.lat),
+          lon: parseFloat(p.lon),
+          name: p.display_name.split(",")[0],
+          full: p.display_name,
+        };
+      });
+  }
+
+  // fetch with a timeout so a slow Overpass mirror doesn't hang forever.
+  function fetchWithTimeout(url, opts, ms) {
+    opts = opts || {};
+    if (typeof AbortController !== "undefined") {
+      var ctrl = new AbortController();
+      opts.signal = ctrl.signal;
+      var timer = setTimeout(function () { ctrl.abort(); }, ms);
+      return fetch(url, opts).finally(function () { clearTimeout(timer); });
+    }
+    return fetch(url, opts); // older browsers: no timeout
+  }
+
+  // ---- Curated day-trip destinations -----------------------------------
+  // Hand-picked, well-loved day trips for major hubs around the world. These
+  // are injected into the candidate pool (so they appear even if Overpass is
+  // down) and carry editorial blurbs that override the auto-generated text.
+  // placeType drives scoring/markers; blurb is shown verbatim on hover.
+  var CURATED = [
+    // ---- Around London / South-East England ----
+    { name: "Brighton", lat: 50.8225, lon: -0.1372, placeType: "city",
+      blurb: "A buzzy seaside city famous for its nightlife, the quirky shops of the Lanes, and a Regency-era pier." },
+    { name: "Oxford", lat: 51.7520, lon: -1.2577, placeType: "city",
+      blurb: "The original dreaming-spires university city — honey-stone colleges, punting on the Cherwell, and grand museums." },
+    { name: "Cambridge", lat: 52.2053, lon: 0.1218, placeType: "city",
+      blurb: "Punt past centuries-old colleges and the Bridge of Sighs in this picture-perfect university city." },
+    { name: "Canterbury", lat: 51.2800, lon: 1.0789, placeType: "town",
+      blurb: "A medieval cathedral city with cobbled lanes, a soaring Gothic cathedral, and Chaucer's Tales." },
+    { name: "Windsor", lat: 51.4839, lon: -0.6044, placeType: "town",
+      blurb: "Home to Windsor Castle, the Queen's weekend retreat, plus riverside strolls and Eton across the Thames." },
+    { name: "The Cotswolds (Bourton-on-the-Water)", lat: 51.8850, lon: -1.7580, placeType: "attraction",
+      blurb: "Storybook honey-stone villages, low bridges over the River Windrush, and the greenest of English countryside." },
+    { name: "Bath", lat: 51.3811, lon: -2.3590, placeType: "city",
+      blurb: "Roman baths, honey-coloured Georgian crescents and Jane Austen charm in one elegant World Heritage city." },
+    { name: "White Cliffs of Dover", lat: 51.1350, lon: 1.3710, placeType: "landmark",
+      blurb: "Iconic chalk cliffs with clifftop walks, a medieval castle, and views across the Channel to France." },
+
+    // ---- Around Sydney, Australia ----
+    { name: "Blue Mountains", lat: -33.6, lon: 150.35, placeType: "national_park",
+      blurb: "Sydney's great escape — dramatic sandstone cliffs, eucalyptus-blue valleys, waterfalls and the Three Sisters at Katoomba." },
+    { name: "Royal National Park", lat: -34.0725, lon: 151.0540, placeType: "national_park",
+      blurb: "The world's second-oldest national park: coastal walks, hidden beaches and the famous Figure 8 Pools." },
+    { name: "Hunter Valley", lat: -32.7730, lon: 151.3000, placeType: "attraction",
+      blurb: "Australia's most famous wine country — cellar-door tastings, gourmet food and rolling vineyards." },
+    { name: "Wollongong", lat: -34.4244, lon: 150.8939, placeType: "city",
+      blurb: "Surf beaches, a clifftop coastal drive and the spectacular Sea Cliff Bridge, an easy run south of Sydney." },
+
+    // ---- Around Melbourne, Australia ----
+    { name: "Great Ocean Road (Twelve Apostles)", lat: -38.6650, lon: 143.1040, placeType: "landmark",
+      blurb: "One of the world's great coastal drives, ending at the towering limestone stacks of the Twelve Apostles." },
+    { name: "Yarra Valley", lat: -37.6500, lon: 145.4500, placeType: "attraction",
+      blurb: "Rolling wine country on Melbourne's doorstep — sparkling houses, long lunches and hot-air-balloon dawns." },
+    { name: "Mornington Peninsula", lat: -38.3600, lon: 144.9000, placeType: "attraction",
+      blurb: "Bayside beaches, cliff walks, hot springs and cool-climate wineries all in one laid-back peninsula." },
+
+    // ---- Around Paris, France ----
+    { name: "Palace of Versailles", lat: 48.8049, lon: 2.1204, placeType: "landmark",
+      blurb: "The ultimate royal blow-out — gilded halls, the Hall of Mirrors and endless formal gardens and fountains." },
+    { name: "Giverny", lat: 49.0756, lon: 1.5330, placeType: "attraction",
+      blurb: "Wander Monet's house and the lily-pad gardens that inspired his most famous Impressionist paintings." },
+    { name: "Fontainebleau", lat: 48.4020, lon: 2.6999, placeType: "landmark",
+      blurb: "A vast, less-crowded royal château set in a forest beloved by climbers and walkers." },
+
+    // ---- Around New York City, USA ----
+    { name: "Hudson Valley (Beacon)", lat: 41.5048, lon: -73.9696, placeType: "attraction",
+      blurb: "Riverside art at Dia Beacon, mountain hikes and charming small towns up the scenic Hudson line." },
+    { name: "The Hamptons", lat: 40.9634, lon: -72.1848, placeType: "attraction",
+      blurb: "Long Island's famous summer playground — white-sand beaches, farm stands and seaside villages." },
+    { name: "Bear Mountain State Park", lat: 41.3121, lon: -73.9887, placeType: "national_park",
+      blurb: "Big Hudson Highlands views, lake and forest trails, under an hour north of the city." },
+
+    // ---- Around Tokyo, Japan ----
+    { name: "Hakone", lat: 35.2324, lon: 139.1069, placeType: "attraction",
+      blurb: "Hot-spring resort town with open-air art museums, a pirate-ship lake cruise and Mt Fuji views." },
+    { name: "Nikko", lat: 36.7580, lon: 139.5986, placeType: "landmark",
+      blurb: "Lavish shrines and temples wrapped in cedar forest, waterfalls and mountain scenery." },
+    { name: "Kamakura", lat: 35.3192, lon: 139.5469, placeType: "town",
+      blurb: "Seaside temple town home to the Great Buddha, bamboo groves and surf beaches." },
+  ];
+
+  // Return curated destinations within range of the start, as candidate objects.
+  function curatedNear(start) {
+    return CURATED
+      .map(function (c) {
+        return {
+          lat: c.lat, lon: c.lon, name: c.name,
+          placeType: c.placeType,
+          isSettlement: c.placeType === "city" || c.placeType === "town" || c.placeType === "village",
+          population: 0,
+          curatedBlurb: c.blurb,
+        };
+      })
+      .filter(function (c) {
+        var km = distanceKm(start, { lat: c.lat, lon: c.lon });
+        return km >= 8 && estimateTravel(km).minutes <= MAX_TRAVEL_MIN;
+      });
+  }
+
+  // ---- Primary discovery: Wikidata Query Service -----------------------
+  // Finds NOTABLE places near the start (settlements, tourist attractions,
+  // national parks, natural features) already ranked by Wikipedia sitelinks.
+  // This is the key fix for junk results: unlike a Nominatim keyword search,
+  // it returns the genuinely famous day-trip spots near a point.
+  function wikidataNearby(start) {
+    // instance-of targets: human settlement, tourist attraction, protected
+    // area / national park, body of water, mountain, archaeological/heritage.
+    var types = ["wd:Q486972", "wd:Q570116", "wd:Q473972", "wd:Q46169",
+                 "wd:Q23397", "wd:Q8502", "wd:Q839954"];
+    var values = types.join(" ");
+    var sparql =
+      "SELECT ?place ?placeLabel ?placeDescription ?lat ?lon ?sl ?type ?site ?article WHERE {" +
+      "  SERVICE wikibase:around {" +
+      "    ?place wdt:P625 ?loc." +
+      "    bd:serviceParam wikibase:center \"Point(" + start.lon + " " + start.lat + ")\"^^geo:wktLiteral." +
+      "    bd:serviceParam wikibase:radius \"165\"." +
+      "    bd:serviceParam wikibase:distance ?dist." +
+      "  }" +
+      "  VALUES ?type { " + values + " }" +
+      "  ?place wdt:P31/wdt:P279* ?type." +
+      "  ?place wikibase:sitelinks ?sl. FILTER(?sl >= 25)" +
+      "  ?place p:P625/psv:P625 ?node." +
+      "  ?node wikibase:geoLatitude ?lat." +
+      "  ?node wikibase:geoLongitude ?lon." +
+      "  OPTIONAL { ?place wdt:P856 ?site. }" +           // official website
+      "  OPTIONAL { ?article schema:about ?place;" +       // English Wikipedia page
+      "             schema:isPartOf <https://en.wikipedia.org/>. }" +
+      "  SERVICE wikibase:label { bd:serviceParam wikibase:language \"en\". }" +
+      "} ORDER BY DESC(?sl) LIMIT 60";
+
+    var url = WDQS + "?format=json&query=" + encodeURIComponent(sparql);
+    return fetchWithTimeout(url, {
+      headers: { "Accept": "application/sparql-results+json" },
+    }, 20000)
+      .then(function (r) { if (!r.ok) throw new Error("wdqs " + r.status); return r.json(); })
+      .then(function (data) {
+        var rows = (data && data.results && data.results.bindings) || [];
+        var out = [];
+        var seenQ = {};
+        rows.forEach(function (b) {
+          var qid = b.place ? b.place.value.split("/").pop() : null;
+          if (!qid || seenQ[qid]) return;
+          seenQ[qid] = true;
+          var typeQ = b.type ? b.type.value.split("/").pop() : "";
+          var kind = classifyWikidataType(typeQ, b.placeDescription ? b.placeDescription.value : "");
+          out.push({
+            lat: parseFloat(b.lat.value),
+            lon: parseFloat(b.lon.value),
+            name: b.placeLabel ? b.placeLabel.value : qid,
+            placeType: kind,
+            isSettlement: kind === "city" || kind === "town" || kind === "village",
+            population: 0,
+            sitelinks: parseInt(b.sl.value, 10) || 0,
+            qid: qid,
+            shortDesc: b.placeDescription ? b.placeDescription.value : "",
+            // "Find out more" link: prefer official site, else Wikipedia article.
+            infoUrl: (b.site && b.site.value) ||
+                     (b.article && b.article.value) || null,
+          });
+        });
+        // Skip unnamed (QID-only) results and the start city itself.
+        return out.filter(function (p) { return !/^Q\d+$/.test(p.name); });
+      });
+  }
+
+  // Map a Wikidata instance-of QID (+ description) to our place kinds.
+  function classifyWikidataType(typeQ, desc) {
+    var d = (desc || "").toLowerCase();
+    if (typeQ === "Q473972" || /national park|protected area/.test(d)) return "national_park";
+    if (typeQ === "Q8502" || /mountain|peak|range/.test(d)) return "peak";
+    if (typeQ === "Q23397" || /lake|reservoir/.test(d)) return "attraction";
+    if (typeQ === "Q570116" || /tourist|attraction|theme park/.test(d)) return "attraction";
+    if (typeQ === "Q839954" || /heritage|archaeolog|castle|ruin|monument/.test(d)) return "landmark";
+    if (/city/.test(d)) return "city";
+    if (/town|village|municipalit/.test(d)) return "town";
+    return "town";
+  }
+
+  // Find candidate destinations: try Wikidata (notable places) first, then
+  // Overpass, then a Nominatim keyword search as a last resort.
+  function findNearby(start) {
+    return wikidataNearby(start)
+      .then(function (list) {
+        if (list && list.length >= 3) return list;
+        // Too few notable hits — supplement with Overpass/Nominatim.
+        return overpassNearby(start).then(function (more) {
+          return (list || []).concat(more || []);
+        });
+      })
+      .catch(function () { return overpassNearby(start); });
+  }
+
+  // Secondary discovery via the Overpass API: cities/towns + attractions
+  // within a ~160km radius. We try several mirrors for resilience.
+  function overpassNearby(start) {
+    var radiusM = 160000; // straight-line; travel-time filter applied later
+    var r = radiusM;
+    var c = start.lat + "," + start.lon;
+    // Pull in not just settlements but genuine day-trip draws: tourist
+    // attractions, theme parks, national parks, and famous natural features.
+    var query =
+      "[out:json][timeout:25];(" +
+      "node[place~\"city|town\"](around:" + r + "," + c + ");" +
+      "node[tourism~\"attraction|theme_park|zoo|museum\"][name](around:" + r + "," + c + ");" +
+      "node[\"natural\"~\"peak|beach\"][name][wikidata](around:" + r + "," + c + ");" +
+      "node[\"historic\"~\"castle|monument|ruins\"][name][wikidata](around:" + r + "," + c + ");" +
+      "node[\"boundary\"=\"national_park\"][name](around:" + r + "," + c + ");" +
+      "way[\"boundary\"=\"national_park\"][name](around:" + r + "," + c + ");" +
+      "relation[\"boundary\"=\"national_park\"][name](around:" + r + "," + c + ");" +
+      ");out center qt 150;";
+    var body = "data=" + encodeURIComponent(query);
+
+    function tryEndpoint(i) {
+      if (i >= OVERPASS_ENDPOINTS.length) {
+        return nominatimFallback(start); // Overpass unavailable — use Nominatim
+      }
+      return fetchWithTimeout(OVERPASS_ENDPOINTS[i], {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: body,
+      }, 20000)
+        .then(function (r) {
+          if (!r.ok) throw new Error("bad status " + r.status);
+          return r.json();
+        })
+        .then(function (data) {
+          var els = (data && data.elements) || [];
+          var mapped = els.map(function (e) {
+            var t = e.tags || {};
+            var pop = parseInt(t.population, 10);
+            var lat = e.lat != null ? e.lat : (e.center && e.center.lat);
+            var lon = e.lon != null ? e.lon : (e.center && e.center.lon);
+            // Classify the candidate so we can describe & score it well.
+            var kind = t.place ? (t.place === "city" ? "city" : t.place === "town" ? "town" : "village")
+                     : t.boundary === "national_park" ? "national_park"
+                     : t.tourism === "theme_park" ? "theme_park"
+                     : t.tourism === "zoo" ? "zoo"
+                     : t.tourism === "museum" ? "museum"
+                     : t.tourism === "attraction" ? "attraction"
+                     : t.natural === "beach" ? "beach"
+                     : t.natural === "peak" ? "peak"
+                     : t.historic ? "landmark"
+                     : "attraction";
+            return {
+              lat: lat,
+              lon: lon,
+              name: t["name:en"] || t.name || "Unnamed place",
+              placeType: kind,
+              isSettlement: !!t.place,
+              population: isNaN(pop) ? 0 : pop,
+            };
+          }).filter(function (p) {
+            return p.name !== "Unnamed place" && p.lat != null && p.lon != null;
+          });
+          if (!mapped.length) return nominatimFallback(start);
+          return mapped;
+        })
+        .catch(function () { return tryEndpoint(i + 1); });
+    }
+    return tryEndpoint(0);
+  }
+
+  // Fallback discovery using Nominatim bounded search (no featureType filter).
+  // Queries towns and cities within a bounding box around the start point.
+  function nominatimFallback(start) {
+    var radiusKm = 170;
+    var dLat = radiusKm / 111;
+    var dLon = radiusKm / (111 * Math.cos(start.lat * Math.PI / 180));
+    var viewbox = [
+      (start.lon - dLon).toFixed(4), (start.lat + dLat).toFixed(4),
+      (start.lon + dLon).toFixed(4), (start.lat - dLat).toFixed(4),
+    ].join(",");
+
+    function q(term) {
+      var url = NOMINATIM + "/search?format=jsonv2&limit=40&dedupe=1&bounded=1" +
+                "&viewbox=" + viewbox + "&q=" + encodeURIComponent(term);
+      return fetchWithTimeout(url, { headers: { "Accept-Language": "en" } }, 15000)
+        .then(function (r) { return r.json(); })
+        .then(function (list) { return list || []; })
+        .catch(function () { return []; });
+    }
+
+    // Also pull natural + tourist attractions so marquee day-trips (national
+    // parks, famous sights) can appear even when Overpass is unavailable.
+    return Promise.all([
+      q("city"), q("town"),
+      q("national park"), q("tourist attraction"),
+    ]).then(function (results) {
+      var merged = [];
+      results.forEach(function (list) { merged = merged.concat(list); });
+      return merged
+        .map(function (p) {
+          var t = p.type || p.addresstype || "";
+          var cat = p.category || p.class || "";
+          var isCity = t === "city" || p.addresstype === "city";
+          var isTown = t === "town" || p.addresstype === "town";
+          var isVillage = t === "village" || p.addresstype === "village";
+          var isPark = t === "national_park" || cat === "boundary" ||
+                       cat === "leisure" || /national park/i.test(p.display_name || "");
+          var isAttraction = cat === "tourism" || t === "attraction" ||
+                             cat === "natural" || cat === "historic";
+          if (!(isCity || isTown || isVillage || isPark || isAttraction)) return null;
+          var kind = isCity ? "city" : isTown ? "town" : isVillage ? "village"
+                   : isPark ? "national_park"
+                   : cat === "natural" ? (t === "peak" || t === "mountain_range" ? "peak" : t === "beach" ? "beach" : "attraction")
+                   : cat === "historic" ? "landmark"
+                   : "attraction";
+          return {
+            lat: parseFloat(p.lat),
+            lon: parseFloat(p.lon),
+            name: p.display_name.split(",")[0],
+            placeType: kind,
+            isSettlement: isCity || isTown || isVillage,
+            population: 0,
+            importance: p.importance || 0,
+          };
+        })
+        .filter(function (p) { return p != null; });
+    });
+  }
+
+  // ---- Wikipedia / Wikidata enrichment ---------------------------------
+  // We rank day-trip appeal using real "fame" and tourism signals rather than
+  // raw population (which over-rewards commuter towns like Luton/Watford).
+
+  var WIKI_SUMMARY = "https://en.wikipedia.org/api/rest_v1/page/summary/";
+  var WIKIDATA = "https://www.wikidata.org/w/api.php";
+
+  // Words in a place's Wikipedia blurb that signal a genuine visitor destination.
+  var TOURISM_KEYWORDS = [
+    "seaside", "resort", "beach", "coast", "spa town", "historic", "medieval",
+    "cathedral", "minster", "abbey", "castle", "university city", "university town",
+    "market town", "national park", "world heritage", "roman", "harbour", "harbor",
+    "picturesque", "tourist", "tourism", "cliffs", "moor", "dale", "vineyard",
+    "palace", "gothic", "georgian", "regency", "old town", "spa", "pier",
+  ];
+
+  function fetchJSON(url, ms) {
+    return fetchWithTimeout(url, { headers: { "Accept-Language": "en" } }, ms || 12000)
+      .then(function (r) { if (!r.ok) throw new Error("bad status " + r.status); return r.json(); })
+      .catch(function () { return null; });
+  }
+
+  // Fetch a Wikipedia summary for a place name. Returns summary incl. the
+  // article's own coordinates (so we can reject name collisions), or null.
+  function wikiSummary(name) {
+    return fetchJSON(WIKI_SUMMARY + encodeURIComponent(name.replace(/ /g, "_"))).then(function (d) {
+      if (!d || d.type === "disambiguation" || !d.extract) return null;
+      return {
+        extract: d.extract,
+        shortDesc: d.description || "",
+        qid: d.wikibase_item || null,
+        wikiTitle: d.title || name,
+        lat: d.coordinates ? d.coordinates.lat : null,
+        lon: d.coordinates ? d.coordinates.lon : null,
+        pageUrl: (d.content_urls && d.content_urls.desktop && d.content_urls.desktop.page) || null,
+      };
+    });
+  }
+
+  // Fetch Wikidata sitelinks for a QID. Returns { total, wikivoyage } counts.
+  function wikidataSitelinks(qid) {
+    if (!qid) return Promise.resolve({ total: 0, wikivoyage: 0 });
+    var url = WIKIDATA + "?action=wbgetentities&ids=" + qid +
+              "&props=sitelinks&format=json&origin=*";
+    return fetchJSON(url).then(function (d) {
+      if (!d || !d.entities || !d.entities[qid] || !d.entities[qid].sitelinks) {
+        return { total: 0, wikivoyage: 0 };
+      }
+      var links = d.entities[qid].sitelinks;
+      var keys = Object.keys(links);
+      var voyage = 0;
+      keys.forEach(function (k) { if (k.indexOf("wikivoyage") !== -1) voyage++; });
+      return { total: keys.length, wikivoyage: voyage };
+    });
+  }
+
+  // Phrases that signal the genuinely interesting "why you'd visit" sentence.
+  var APPEAL_CUES = [
+    "known for", "famous for", "renowned for", "noted for", "home to",
+    "popular", "attracts", "best known", "celebrated for", "a tourist",
+    "visitor", "destination", "draws", "famed for",
+  ];
+
+  // Human-friendly label for a non-settlement attraction.
+  var KIND_LABEL = {
+    national_park: "national park", theme_park: "theme park", zoo: "wildlife park",
+    museum: "museum", beach: "beach", peak: "mountain", landmark: "historic landmark",
+    attraction: "attraction",
+  };
+
+  // Split an extract into clean sentences. Avoids regex lookbehind for broad
+  // browser support: insert a marker after ". " then split on it.
+  function sentences(text) {
+    if (!text) return [];
+    return text
+      .replace(/\s+/g, " ")
+      .replace(/\.\s+(?=[A-Z0-9])/g, ".\u0001")
+      .split("\u0001")
+      .map(function (s) { return s.trim(); })
+      .filter(function (s) { return s.length > 20; });
+  }
+
+  // Build a lively, place-specific description. Prefers a "famous for / known
+  // for / attracts visitors" sentence from Wikipedia; otherwise crafts a punchy
+  // line from the place type and any tourism keywords we detected.
+  function livelyDescription(place) {
+    var w = place.wiki;
+    var extract = w && w.extract ? w.extract : "";
+    var sents = sentences(extract);
+
+    // 1) Look for the most "appealing" sentence anywhere in the intro.
+    var best = null;
+    for (var i = 0; i < sents.length; i++) {
+      var low = sents[i].toLowerCase();
+      for (var j = 0; j < APPEAL_CUES.length; j++) {
+        if (low.indexOf(APPEAL_CUES[j]) !== -1) { best = sents[i]; break; }
+      }
+      if (best) break;
+    }
+
+    // 2) Otherwise, craft a template from the detected character of the place.
+    if (!best) {
+      var text = (extract + " " + (w ? w.shortDesc : "")).toLowerCase();
+      var traits = [];
+      var traitMap = [
+        ["seaside", "its seaside setting"], ["beach", "sandy beaches"], ["resort", "its holiday buzz"],
+        ["spa", "its spa heritage"], ["cathedral", "a grand cathedral"], ["minster", "a historic minster"],
+        ["abbey", "an ancient abbey"], ["castle", "a storybook castle"], ["university", "its famous university"],
+        ["medieval", "medieval streets"], ["roman", "Roman history"], ["harbour", "a pretty harbour"],
+        ["harbor", "a pretty harbour"], ["cliffs", "dramatic cliffs"], ["moor", "wild moorland"],
+        ["vineyard", "rolling vineyards"], ["palace", "a magnificent palace"], ["pier", "a classic seaside pier"],
+        ["gothic", "Gothic architecture"], ["market town", "its charming market streets"],
+      ];
+      traitMap.forEach(function (pair) {
+        if (text.indexOf(pair[0]) !== -1 && traits.length < 3 && traits.indexOf(pair[1]) === -1) {
+          traits.push(pair[1]);
+        }
+      });
+
+      if (!place.isSettlement) {
+        var label = KIND_LABEL[place.placeType] || "day-trip spot";
+        if (place.placeType === "national_park") best = place.name + " — a national park of sweeping scenery and walking trails.";
+        else if (place.placeType === "beach") best = place.name + " — a beach to soak up the coast for the day.";
+        else if (place.placeType === "peak") best = place.name + " — big views and classic hiking country.";
+        else if (place.placeType === "theme_park") best = place.name + " — rides and thrills for a full day out.";
+        else if (traits.length) best = "A popular " + label + ", known for " + joinNicely(traits) + ".";
+        else best = "A well-known " + label + " worth the trip.";
+      } else if (traits.length) {
+        var kindWord = place.placeType === "city" ? "city" : "town";
+        best = "A " + kindWord + " known for " + joinNicely(traits) + ".";
+      } else if (w && w.shortDesc) {
+        best = w.shortDesc + ".";
+      } else {
+        best = describe(place);
+      }
+    }
+
+    // Tidy length.
+    if (best.length > 185) best = best.slice(0, 182).trim() + "…";
+    return best;
+  }
+
+  function joinNicely(arr) {
+    if (arr.length === 1) return arr[0];
+    if (arr.length === 2) return arr[0] + " and " + arr[1];
+    return arr.slice(0, -1).join(", ") + " and " + arr[arr.length - 1];
+  }
+
+  // Compute a day-trip appeal score from the enrichment data.
+  function appealScore(place) {
+    var w = place.wiki;
+    var score = 0;
+    // Curated day-trips are hand-picked favourites — give them a strong head
+    // start so they reliably surface, while still competing on other signals.
+    if (place.curatedBlurb) score += 200;
+    if (w) {
+      score += Math.min(w.sitelinks.total, 120);          // global fame (capped)
+      score += w.sitelinks.wikivoyage * 25;               // in travel guides = big signal
+      var text = ((w.extract || "") + " " + (w.shortDesc || "")).toLowerCase();
+      TOURISM_KEYWORDS.forEach(function (kw) {
+        if (text.indexOf(kw) !== -1) score += 12;         // tourism descriptors
+      });
+    }
+    // Slight preference for cities and for a real "trip" distance (not next door).
+    if (place.placeType === "city") score += 10;
+    // Natural + marquee attractions are prime day-trip material.
+    if (place.placeType === "national_park") score += 30;
+    if (place.placeType === "theme_park" || place.placeType === "peak" ||
+        place.placeType === "beach" || place.placeType === "landmark") score += 14;
+    if (place.km >= 25 && place.km <= 150) score += 8;
+    // Population is a weak tiebreaker only.
+    score += Math.min(place.population / 50000, 6);
+    return score;
+  }
+
+  // Legacy generic description, used only when Wikipedia has nothing.
+  function describe(place) {
+    var base;
+    if (place.placeType === "city") base = "A city worth exploring for a day";
+    else if (place.placeType === "town") base = "A town with local charm and things to see";
+    else base = "A spot worth a day-trip visit";
+    return base + ".";
+  }
+
+  function run(query) {
+    goBtn.disabled = true;
+    layer.clearLayers();
+    legend.style.display = "none";
+    setStatus("Locating \"" + query + "\"…");
+
+    geocode(query)
+      .then(function (start) {
+        setStatus("Found " + start.name + ". Searching for day trips…");
+
+        var startMarker = L.circleMarker([start.lat, start.lon], {
+          radius: 10, color: "#ffffff", weight: 3,
+          fillColor: "#ff6b5e", fillOpacity: 1,
+        }).addTo(layer);
+        startMarker.bindTooltip("📍 " + start.name, {
+          permanent: true, direction: "top", className: "start-tooltip", offset: [0, -8],
+        });
+        map.setView([start.lat, start.lon], 9);
+
+        return findNearby(start).then(function (candidates) {
+          // 1) Keep unique places within the 2-hour travel window. Curated
+          //    day-trips go in first so they win de-duplication and are always
+          //    considered, even if Overpass returned nothing for them.
+          var within = [];
+          var seen = {};
+          var pool = curatedNear(start).concat(candidates);
+          pool.forEach(function (c) {
+            var km = distanceKm(start, { lat: c.lat, lon: c.lon });
+            if (km < 8) return; // too close to be a "trip"
+            var t = estimateTravel(km);
+            if (t.minutes > MAX_TRAVEL_MIN) return; // beyond 2 hours each way
+            var nameKey = c.name.toLowerCase();
+            if (seen[nameKey]) return;
+            seen[nameKey] = true;
+            within.push({
+              lat: c.lat, lon: c.lon,
+              name: c.name,
+              km: km, travel: t,
+              population: c.population || 0,
+              placeType: c.placeType,
+              isSettlement: c.isSettlement !== false,
+              curatedBlurb: c.curatedBlurb || null,
+              sitelinks: c.sitelinks || 0,    // from Wikidata discovery, if any
+              qid: c.qid || null,
+              shortDesc: c.shortDesc || "",
+              infoUrl: c.infoUrl || null,     // official site / Wikipedia (Wikidata)
+            });
+          });
+
+          if (!within.length) {
+            setStatus("No day trips found within 2 hours of " + start.name + ". Try a larger town or city.", true);
+            return;
+          }
+
+          // 2) Enrich the most promising candidates with Wikipedia so we can
+          //    show a real description and refine ranking. Prioritise by fame
+          //    (Wikidata sitelinks) so we spend calls on the places that matter;
+          //    curated day-trips are always included.
+          var ENRICH_LIMIT = 18;
+          var curatedFirst = within.filter(function (p) { return p.curatedBlurb; });
+          var others = within.filter(function (p) { return !p.curatedBlurb; })
+            .sort(function (a, b) {
+              return (b.sitelinks - a.sitelinks) || (b.population - a.population);
+            });
+          var toEnrich = curatedFirst
+            .concat(others)
+            .slice(0, Math.max(ENRICH_LIMIT, curatedFirst.length));
+
+          setStatus("Finding the best day trips from " + start.name + "… ✨");
+
+          return Promise.all(toEnrich.map(function (place) {
+            // Seed scoring data from Wikidata discovery (if present) so a place
+            // scores correctly even if the Wikipedia summary call fails.
+            place.wiki = {
+              extract: "", shortDesc: place.shortDesc || "",
+              sitelinks: { total: place.sitelinks || 0, wikivoyage: 0 },
+            };
+            return wikiSummary(place.name).then(function (sum) {
+              // Reject name collisions: if the Wikipedia article sits far from
+              // our candidate's real location, it's a different place entirely
+              // (e.g. "Christchurch" Dorset vs Christchurch, New Zealand).
+              // Curated places use trusted coords, so we don't reject those.
+              if (sum && sum.lat != null && !place.curatedBlurb) {
+                var gap = distanceKm(
+                  { lat: place.lat, lon: place.lon },
+                  { lat: sum.lat, lon: sum.lon }
+                );
+                if (gap > 60) sum = null;
+              }
+              if (sum) {
+                place.wiki.extract = sum.extract;
+                if (sum.shortDesc) place.wiki.shortDesc = sum.shortDesc;
+                if (!place.infoUrl && sum.pageUrl) place.infoUrl = sum.pageUrl;
+              }
+              // Final fallback: a Wikipedia search for the place name.
+              if (!place.infoUrl) {
+                place.infoUrl = "https://en.wikipedia.org/w/index.php?search=" +
+                  encodeURIComponent(place.name);
+              }
+              place.desc = place.curatedBlurb || livelyDescription(place);
+              return place;
+            });
+          })).then(function (enriched) {
+            // 3) Score by appeal and take the top 3.
+            enriched.forEach(function (p) { p.score = appealScore(p); });
+            enriched.sort(function (a, b) {
+              return (b.score - a.score) || (a.km - b.km);
+            });
+            renderPicks(start, enriched.slice(0, MAX_RESULTS));
+          });
+        });
+      })
+      .catch(function (err) {
+        setStatus(err.message || "Something went wrong. Try again.", true);
+      })
+      .finally(function () {
+        goBtn.disabled = false;
+      });
+  }
+
+  function renderPicks(start, picks) {
+    if (!picks.length) {
+      setStatus("No day trips found within 2 hours of " + start.name + ". Try a larger town or city.", true);
+      return;
+    }
+    var bounds = [[start.lat, start.lon]];
+          picks.forEach(function (p) {
+            L.polyline([[start.lat, start.lon], [p.lat, p.lon]], {
+              color: "#16c2b4", weight: 3, opacity: 0.75, dashArray: "2 9", lineCap: "round",
+            }).addTo(layer);
+
+            var marker = L.circleMarker([p.lat, p.lon], {
+              radius: 9, color: "#ffffff", weight: 3,
+              fillColor: "#ffa63d", fillOpacity: 1,
+            }).addTo(layer);
+            // Clicking a pin reopens the results panel if it was closed.
+            marker.on("click", function () {
+              if (lastStart) renderResultsPanel(lastStart, lastPicks);
+            });
+
+            var html =
+              '<div class="name">' + p.name + '</div>' +
+              '<div class="desc">' + p.desc + '</div>' +
+              '<div class="meta">🕒 ' + fmtTime(p.travel.minutes) +
+              ' each way <span class="method">· ' + p.travel.method + '</span></div>' +
+              '<div class="desc">≈ ' + p.travel.routeKm + ' km</div>';
+
+            // direction:auto lets Leaflet flip the card below the pin when there
+            // isn't room above (e.g. pins near the top, under the header).
+            marker.bindTooltip(html, {
+              direction: "auto", className: "trip-card", offset: [0, 0], sticky: false, opacity: 1,
+            });
+            bounds.push([p.lat, p.lon]);
+          });
+
+    // Generous top padding keeps pins (and their cards) clear of the header.
+    map.fitBounds(bounds, { paddingTopLeft: [60, 110], paddingBottomRight: [60, 70] });
+    legend.style.display = "block";
+    setStatus("🎉 " + picks.length + " day trip" + (picks.length > 1 ? "s" : "") +
+              " from " + start.name + "! Hover a pin for the details.");
+
+    // Keep the latest results for the Save / Share features, then show the panel.
+    lastStart = start;
+    lastPicks = picks;
+    renderResultsPanel(start, picks);
+  }
+
+  // =====================================================================
+  //  Accounts, Saved Trips, Sharing  (client-side demo via localStorage)
+  // =====================================================================
+
+  var LS_USERS = "daytripper.users";
+  var LS_SESSION = "daytripper.session";
+  var LS_TRIPS = "daytripper.trips"; // keyed by user email
+
+  var lastStart = null;   // most recent search start {name, lat, lon}
+  var lastPicks = [];     // most recent array of picked places
+  var pendingSave = null; // a trip queued to save after the user logs in
+
+  // -- tiny storage helpers --
+  function readJSON(key, fallback) {
+    try { return JSON.parse(localStorage.getItem(key)) || fallback; }
+    catch (e) { return fallback; }
+  }
+  function writeJSON(key, val) { localStorage.setItem(key, JSON.stringify(val)); }
+
+  // Lightweight, NON-SECURE password hash (demo only). Keeps the stored value
+  // from being the literal password; it is not real cryptographic security.
+  function hashPassword(pw) {
+    var h = 5381;
+    for (var i = 0; i < pw.length; i++) { h = ((h << 5) + h + pw.charCodeAt(i)) | 0; }
+    // Mix in length + a second pass for a little more spread.
+    var h2 = 52711;
+    for (var j = pw.length - 1; j >= 0; j--) { h2 = ((h2 << 5) + h2 ^ pw.charCodeAt(j)) | 0; }
+    return (h >>> 0).toString(16) + ":" + (h2 >>> 0).toString(16) + ":" + pw.length;
+  }
+
+  function getUsers() { return readJSON(LS_USERS, {}); }
+  function currentUser() { return readJSON(LS_SESSION, null); }
+
+  function createAccount(name, email, pw) {
+    email = email.trim().toLowerCase();
+    var users = getUsers();
+    if (users[email]) throw new Error("An account with that email already exists.");
+    if (pw.length < 4) throw new Error("Password must be at least 4 characters.");
+    users[email] = { name: name.trim() || email.split("@")[0], email: email, pass: hashPassword(pw) };
+    writeJSON(LS_USERS, users);
+    return { name: users[email].name, email: email };
+  }
+
+  function loginAccount(email, pw) {
+    email = email.trim().toLowerCase();
+    var users = getUsers();
+    var u = users[email];
+    if (!u || u.pass !== hashPassword(pw)) throw new Error("Email or password is incorrect.");
+    return { name: u.name, email: email };
+  }
+
+  function setSession(user) { writeJSON(LS_SESSION, user); refreshAuthUI(); }
+  function clearSession() { localStorage.removeItem(LS_SESSION); refreshAuthUI(); }
+
+  // -- saved trips (per user) --
+  function tripsFor(email) {
+    var all = readJSON(LS_TRIPS, {});
+    return all[email] || [];
+  }
+  function saveTripFor(email, trip) {
+    var all = readJSON(LS_TRIPS, {});
+    var list = all[email] || [];
+    // De-dupe on start + destination name.
+    var key = (trip.startName + "|" + trip.name).toLowerCase();
+    if (list.some(function (t) { return (t.startName + "|" + t.name).toLowerCase() === key; })) {
+      return false; // already saved
+    }
+    list.unshift(trip);
+    all[email] = list;
+    writeJSON(LS_TRIPS, all);
+    return true;
+  }
+  function removeTripFor(email, id) {
+    var all = readJSON(LS_TRIPS, {});
+    all[email] = (all[email] || []).filter(function (t) { return t.id !== id; });
+    writeJSON(LS_TRIPS, all);
+  }
+
+  // ---- DOM references ----
+  var authModal = document.getElementById("authModal");
+  var modalTitle = document.getElementById("modalTitle");
+  var modalSub = document.getElementById("modalSub");
+  var nameField = document.getElementById("nameField");
+  var fName = document.getElementById("fName");
+  var fEmail = document.getElementById("fEmail");
+  var fPass = document.getElementById("fPass");
+  var authErr = document.getElementById("authErr");
+  var authSubmit = document.getElementById("authSubmit");
+  var authForm = document.getElementById("authForm");
+  var switchLink = document.getElementById("switchLink");
+  var authSwitch = document.getElementById("authSwitch");
+
+  var loggedOut = document.getElementById("authLoggedOut");
+  var loggedIn = document.getElementById("authLoggedIn");
+  var authWho = document.getElementById("authWho");
+
+  var resultsPanel = document.getElementById("resultsPanel");
+  var panelTitle = document.getElementById("panelTitle");
+  var panelBody = document.getElementById("panelBody");
+  var panelClose = document.getElementById("panelClose");
+  var reopenBtn = document.getElementById("reopenBtn");
+
+  var sharePop = document.getElementById("sharePop");
+
+  var authMode = "login"; // or "signup"
+
+  // ---- auth UI state ----
+  function refreshAuthUI() {
+    var u = currentUser();
+    if (u) {
+      loggedOut.style.display = "none";
+      loggedIn.style.display = "flex";
+      authWho.textContent = u.name;
+    } else {
+      loggedOut.style.display = "flex";
+      loggedIn.style.display = "none";
+    }
+    // Re-render whichever list is open so Save buttons reflect login state.
+    if (resultsPanel.classList.contains("open") && panelMode === "results" && lastStart) {
+      renderResultsPanel(lastStart, lastPicks);
+    }
+  }
+
+  function openModal(mode) {
+    authMode = mode;
+    authErr.classList.remove("show");
+    authErr.textContent = "";
+    fPass.value = "";
+    if (mode === "signup") {
+      modalTitle.textContent = "🗺️ Create your account";
+      modalSub.textContent = "Save day trips and find them again any time.";
+      nameField.style.display = "block";
+      authSubmit.textContent = "Sign up";
+      authSwitch.innerHTML = 'Already have an account? <a id="switchLink">Log in</a>';
+    } else {
+      modalTitle.textContent = "🗺️ Welcome back";
+      modalSub.textContent = pendingSave
+        ? "Log in to save \u201c" + pendingSave.name + "\u201d to My Trips."
+        : "Log in to save and revisit your day trips.";
+      nameField.style.display = "none";
+      authSubmit.textContent = "Log in";
+      authSwitch.innerHTML = 'New here? <a id="switchLink">Create an account</a>';
+    }
+    rebindSwitchLink();
+    authModal.classList.add("open");
+    setTimeout(function () { fEmail.focus(); }, 50);
+  }
+  function closeModal() { authModal.classList.remove("open"); }
+
+  function rebindSwitchLink() {
+    var link = document.getElementById("switchLink");
+    if (link) link.onclick = function () { openModal(authMode === "login" ? "signup" : "login"); };
+  }
+
+  function showAuthError(msg) {
+    authErr.textContent = msg;
+    authErr.classList.add("show");
+  }
+
+  // ---- auth event wiring ----
+  document.getElementById("loginBtn").onclick = function () { openModal("login"); };
+  document.getElementById("signupBtn").onclick = function () { openModal("signup"); };
+  document.getElementById("modalClose").onclick = closeModal;
+  document.getElementById("logoutBtn").onclick = function () {
+    clearSession();
+    if (panelMode === "mytrips") closePanel();
+    setStatus("Logged out. Your saved trips are safe for next time. 👋");
+  };
+  document.getElementById("myTripsBtn").onclick = function () { renderMyTrips(); };
+
+  authModal.addEventListener("click", function (e) {
+    if (e.target === authModal) closeModal();
+  });
+
+  authForm.addEventListener("submit", function (e) {
+    e.preventDefault();
+    var email = fEmail.value.trim();
+    var pw = fPass.value;
+    try {
+      var user;
+      if (authMode === "signup") {
+        user = createAccount(fName.value, email, pw);
+      } else {
+        user = loginAccount(email, pw);
+      }
+      setSession(user);
+      closeModal();
+      // If a save was queued (user hit Save while logged out), complete it now.
+      if (pendingSave) {
+        var ok = saveTripFor(user.email, pendingSave);
+        setStatus(ok
+          ? "Saved \u201c" + pendingSave.name + "\u201d to My Trips. ⭐"
+          : "\u201c" + pendingSave.name + "\u201d is already in My Trips.");
+        pendingSave = null;
+        if (lastStart) renderResultsPanel(lastStart, lastPicks);
+      } else {
+        setStatus("Welcome, " + user.name + "! You're logged in. 🎉");
+      }
+    } catch (err) {
+      showAuthError(err.message);
+    }
+  });
+
+  // =====================================================================
+  //  Panel rendering (results + My Trips share one panel)
+  // =====================================================================
+  var panelMode = "results";
+
+  function openPanel() {
+    resultsPanel.classList.add("open");
+    reopenBtn.style.display = "none";
+  }
+  function closePanel() {
+    resultsPanel.classList.remove("open");
+    hideSharePop();
+    updateReopenButton();
+  }
+  // Show the "Show results" button only when the panel is closed but we have
+  // a set of results worth returning to.
+  function updateReopenButton() {
+    var hasResults = lastPicks && lastPicks.length;
+    var open = resultsPanel.classList.contains("open");
+    reopenBtn.style.display = (!open && hasResults) ? "block" : "none";
+  }
+  panelClose.onclick = closePanel;
+  reopenBtn.onclick = function () {
+    // Reopen whichever list is relevant: results by default.
+    if (lastStart && lastPicks.length) renderResultsPanel(lastStart, lastPicks);
+    else openPanel();
+  };
+
+  function escapeHTML(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+
+  function tripRecord(start, p) {
+    return {
+      id: "t" + Date.now() + Math.random().toString(36).slice(2, 7),
+      startName: start.name, startLat: start.lat, startLon: start.lon,
+      name: p.name, lat: p.lat, lon: p.lon,
+      desc: p.desc, minutes: p.travel.minutes, method: p.travel.method,
+      routeKm: p.travel.routeKm,
+      infoUrl: p.infoUrl || null,
+      savedAt: Date.now(),
+    };
+  }
+
+  // A friendly label for the "find out more" link based on its host.
+  function infoLinkLabel(url) {
+    if (!url) return "";
+    if (/wikipedia\.org/.test(url)) return "Read more on Wikipedia";
+    return "Visit the official site";
+  }
+
+  function renderResultsPanel(start, picks) {
+    panelMode = "results";
+    panelTitle.textContent = "Day trips from " + start.name;
+    var u = currentUser();
+    var savedNames = u
+      ? tripsFor(u.email).map(function (t) { return (t.startName + "|" + t.name).toLowerCase(); })
+      : [];
+
+    panelBody.innerHTML = "";
+    picks.forEach(function (p, idx) {
+      var savedKey = (start.name + "|" + p.name).toLowerCase();
+      var isSaved = savedNames.indexOf(savedKey) !== -1;
+      var item = document.createElement("div");
+      item.className = "trip-item";
+      var moreLink = p.infoUrl
+        ? '<a class="ti-more" href="' + escapeHTML(p.infoUrl) + '" target="_blank" rel="noopener">' +
+            '🔎 ' + escapeHTML(infoLinkLabel(p.infoUrl)) + ' ↗</a>'
+        : "";
+      item.innerHTML =
+        '<div class="ti-name">' + escapeHTML(p.name) + '</div>' +
+        '<div class="ti-desc">' + escapeHTML(p.desc) + '</div>' +
+        '<div class="ti-meta">🕒 ' + fmtTime(p.travel.minutes) +
+          ' each way <span class="method">· ' + escapeHTML(p.travel.method) + '</span>' +
+          ' &middot; ≈ ' + p.travel.routeKm + ' km</div>' +
+        moreLink +
+        '<div class="ti-actions">' +
+          '<button class="btn-save' + (isSaved ? " saved" : "") + '">' +
+            (isSaved ? "⭐ Saved" : "☆ Save") + '</button>' +
+          '<button class="btn-share">🔗 Share</button>' +
+        '</div>';
+
+      var saveBtn = item.querySelector(".btn-save");
+      var shareBtn = item.querySelector(".btn-share");
+      saveBtn.onclick = function () { onSaveClick(start, p, saveBtn); };
+      shareBtn.onclick = function (ev) { onShareClick(ev, start, p); };
+
+      panelBody.appendChild(item);
+    });
+    openPanel();
+  }
+
+  // =====================================================================
+  //  Save trip
+  // =====================================================================
+  function onSaveClick(start, p, btn) {
+    var u = currentUser();
+    if (!u) {
+      // Not logged in — queue this trip and send them to login.
+      pendingSave = tripRecord(start, p);
+      openModal("login");
+      return;
+    }
+    var ok = saveTripFor(u.email, tripRecord(start, p));
+    btn.classList.add("saved");
+    btn.textContent = ok ? "⭐ Saved" : "⭐ Saved";
+    setStatus(ok
+      ? "Saved \u201c" + p.name + "\u201d to My Trips. ⭐"
+      : "\u201c" + p.name + "\u201d is already in My Trips.");
+  }
+
+  // =====================================================================
+  //  My Trips
+  // =====================================================================
+  function renderMyTrips() {
+    var u = currentUser();
+    if (!u) { openModal("login"); return; }
+    panelMode = "mytrips";
+    panelTitle.textContent = "My Trips";
+    var trips = tripsFor(u.email);
+    panelBody.innerHTML = "";
+
+    if (!trips.length) {
+      panelBody.innerHTML = '<div class="mytrips-empty">No saved trips yet.<br>' +
+        'Search for a day trip and hit ☆ Save to add one here.</div>';
+      openPanel();
+      return;
+    }
+
+    trips.forEach(function (t) {
+      var item = document.createElement("div");
+      item.className = "mt-item";
+      var mtMore = t.infoUrl
+        ? '<a class="ti-more" href="' + escapeHTML(t.infoUrl) + '" target="_blank" rel="noopener">' +
+            '🔎 ' + escapeHTML(infoLinkLabel(t.infoUrl)) + ' ↗</a>'
+        : "";
+      item.innerHTML =
+        '<button class="mt-del" title="Remove">&times;</button>' +
+        '<div class="mt-start">From ' + escapeHTML(t.startName) + '</div>' +
+        '<div class="mt-name">' + escapeHTML(t.name) + '</div>' +
+        '<div class="mt-desc">' + escapeHTML(t.desc || "") + '</div>' +
+        '<div class="ti-meta" style="margin-top:6px;">🕒 ' + fmtTime(t.minutes) +
+          ' each way <span class="method">· ' + escapeHTML(t.method) + '</span></div>' +
+        mtMore +
+        '<div class="ti-actions" style="opacity:1;max-height:none;margin-top:8px;">' +
+          '<button class="btn-share">🔗 Share</button>' +
+        '</div>';
+      item.querySelector(".mt-del").onclick = function () {
+        removeTripFor(u.email, t.id);
+        renderMyTrips();
+      };
+      item.querySelector(".btn-share").onclick = function (ev) {
+        onShareClick(ev, { name: t.startName }, {
+          name: t.name, desc: t.desc,
+          travel: { minutes: t.minutes, method: t.method, routeKm: t.routeKm },
+        });
+      };
+      panelBody.appendChild(item);
+    });
+    openPanel();
+  }
+
+  // =====================================================================
+  //  Share trip (Email / WhatsApp / Copy) — available to everyone
+  // =====================================================================
+  function shareText(start, p) {
+    var line = p.name + " — a day trip from " + start.name +
+      " (about " + fmtTime(p.travel.minutes) + " each way by " + p.travel.method + ").";
+    var desc = p.desc ? "\n" + p.desc : "";
+    return "Check out this day trip idea from Daytripper!\n\n" + line + desc;
+  }
+
+  function onShareClick(ev, start, p) {
+    ev.stopPropagation();
+    var text = shareText(start, p);
+    var subject = "Day trip idea: " + p.name;
+
+    document.getElementById("shareEmail").href =
+      "mailto:?subject=" + encodeURIComponent(subject) + "&body=" + encodeURIComponent(text);
+    document.getElementById("shareWhatsApp").href =
+      "https://wa.me/?text=" + encodeURIComponent(text);
+
+    document.getElementById("shareCopy").onclick = function (e) {
+      e.preventDefault();
+      copyToClipboard(text);
+      hideSharePop();
+      setStatus("Trip summary copied to clipboard. 📋");
+    };
+    // Close the popover once a share channel is chosen.
+    document.getElementById("shareEmail").onclick = function () { hideSharePop(); };
+    document.getElementById("shareWhatsApp").onclick = function () { hideSharePop(); };
+
+    // Position the popover near the clicked button.
+    var rect = ev.currentTarget.getBoundingClientRect();
+    sharePop.style.left = Math.min(rect.left, window.innerWidth - 200) + "px";
+    sharePop.style.top = (rect.bottom + 6) + "px";
+    sharePop.classList.add("open");
+  }
+
+  function hideSharePop() { sharePop.classList.remove("open"); }
+
+  function copyToClipboard(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).catch(function () { fallbackCopy(text); });
+    } else { fallbackCopy(text); }
+  }
+  function fallbackCopy(text) {
+    var ta = document.createElement("textarea");
+    ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0";
+    document.body.appendChild(ta); ta.select();
+    try { document.execCommand("copy"); } catch (e) {}
+    document.body.removeChild(ta);
+  }
+
+  // Dismiss the share popover / modal with outside click or Escape.
+  document.addEventListener("click", function (e) {
+    if (sharePop.classList.contains("open") &&
+        !sharePop.contains(e.target) &&
+        !(e.target.classList && e.target.classList.contains("btn-share"))) {
+      hideSharePop();
+    }
+  });
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape") { hideSharePop(); closeModal(); }
+  });
+
+  // Initialise auth UI on load.
+  refreshAuthUI();
+
+  form.addEventListener("submit", function (e) {
+    e.preventDefault();
+    var q = input.value.trim();
+    if (q) run(q);
+  });
+})();
+</script>
+</body>
+</html>
